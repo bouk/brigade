@@ -47,9 +47,9 @@ func S3Init() *S3Connection {
 	return s
 }
 
-func (s *S3Connection) fileCopier() {
-	for {
-		key := <-CopyFiles
+func (s *S3Connection) fileCopier(finished chan int) {
+	for key := range CopyFiles {
+    log.Printf("Copying %v", key)
     Stats.files++
     Stats.working++
 
@@ -87,9 +87,12 @@ func (s *S3Connection) fileCopier() {
 
     Stats.working--
 	}
+  log.Printf("Worker finished")
+  finished<- 1
 }
 
 var worker []*S3Connection
+var quitChannel chan int
 
 func Init() {
 	ScanDirs = list.New()
@@ -97,7 +100,7 @@ func Init() {
 
 	CopyFiles = make(chan string, 1000)
 	DeleteFiles = make(chan string, 100)
-
+  quitChannel = make(chan int)
 	worker = make([]*S3Connection, Config.Workers)
 
 	// spawn workers
@@ -105,7 +108,7 @@ func Init() {
 
 	for i := 0; i < Config.Workers; i++ {
 		worker[i] = S3Init()
-		go worker[i].fileCopier()
+		go worker[i].fileCopier(quitChannel)
 	}
 }
 
@@ -118,10 +121,33 @@ func (s *S3Connection) CopyBucket() {
 		}
 		err := s.CopyDirectory(dir)
 		if err != nil {
+      log.Printf("Error copying directory: %v", err)
 			Errors.PushBack(err)
 		}
 	}
   printStats()
+  s.Shutdown()
+}
+
+func (s *S3Connection) Shutdown() {
+  log.Printf("Shutting down..")
+  close(CopyFiles)
+
+  finished := 0
+  for finished < Config.Workers {
+    finished += <-quitChannel
+    log.Printf("Worker quit..")
+  }
+
+  log.Printf("Final stats:")
+  printStats()
+
+  if Errors.Len() > 0 {
+    log.Printf("%v Errors:", Errors.Len())
+    for Errors.Len() > 0 {
+      log.Printf("%v", Errors.Remove(Errors.Front()))
+    }
+  }
 }
 
 func inList(input string, list []string) bool {
@@ -166,7 +192,7 @@ func (s *S3Connection) CopyDirectory(dir string) error {
 		ScanDirs.PushBack(sourceList.CommonPrefixes[i])
 	}
 
-	// push subdirectories that no longer exist onto delete queue
+	// push subdirectories that no longer exist onto queue
 	for i := 0; i < len(destList.CommonPrefixes); i++ {
 		if !inList(destList.CommonPrefixes[i], sourceList.CommonPrefixes) {
 			ScanDirs.PushBack(destList.CommonPrefixes[i])

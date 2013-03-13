@@ -11,11 +11,19 @@ type StatsType struct {
   bytes int64
   working int
   errors int
+  bps int
 }
 
 var Stats StatsType
 
 func printStats() {
+  duration := int64(time.Since(start).Seconds())
+  if duration > 0 {
+    Stats.bps = int(Stats.bytes / duration)
+  } else {
+    Stats.bps = 0
+  }
+
   log.Printf("%+v", Stats)
 }
 
