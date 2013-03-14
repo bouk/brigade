@@ -49,7 +49,6 @@ func S3Init() *S3Connection {
 
 func (s *S3Connection) fileCopier(finished chan int) {
 	for key := range CopyFiles {
-    log.Printf("Copying %v", key)
     Stats.files++
     Stats.working++
 
