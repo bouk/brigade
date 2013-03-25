@@ -3,14 +3,18 @@ package main
 import (
 	"container/list"
 	"github.com/boourns/goamz/s3"
+  "github.com/boourns/iq"
 	"launchpad.net/goamz/aws"
 	"log"
 	"strconv"
+  "sync"
 )
 
 var Errors *list.List
-var ScanDirs *list.List
+var ErrorMutex sync.Mutex
 
+var DirCollector chan string
+var NextDir chan string
 var CopyFiles chan string
 var DeleteFiles chan string
 
@@ -54,9 +58,13 @@ func (s *S3Connection) fileCopier(finished chan int) {
 
 		source, err := s.SourceBucket.GetResponse(key)
 		if err != nil {
+      ErrorMutex.Lock()
 			Errors.PushBack(err)
+      ErrorMutex.Unlock()
 			continue
 		}
+
+    log.Printf("Copying file %s\n", key)
 
 		if source.Header["Content-Length"] == nil || len(source.Header["Content-Length"]) != 1 {
 			log.Printf("Missing Content-Length for key %s\n", key)
@@ -70,7 +78,9 @@ func (s *S3Connection) fileCopier(finished chan int) {
 
 		length, err := strconv.ParseInt(source.Header["Content-Length"][0], 10, 64)
 		if err != nil {
+      ErrorMutex.Lock()
 			Errors.PushBack(err)
+      ErrorMutex.Unlock()
 			continue
 		}
 
@@ -90,40 +100,52 @@ func (s *S3Connection) fileCopier(finished chan int) {
   finished<- 1
 }
 
-var worker []*S3Connection
+var fileWorker []*S3Connection
+var dirWorker  []*S3Connection
+
 var quitChannel chan int
 
 func Init() {
-	ScanDirs = list.New()
 	Errors = list.New()
 
 	CopyFiles = make(chan string, 1000)
 	DeleteFiles = make(chan string, 100)
+	DirCollector = make(chan string)
+  NextDir = make(chan string)
+
   quitChannel = make(chan int)
-	worker = make([]*S3Connection, Config.Workers)
+	fileWorker = make([]*S3Connection, Config.FileWorkers)
+	dirWorker  = make([]*S3Connection, Config.DirWorkers)
 
 	// spawn workers
-  log.Printf("Spawning %d workers", Config.Workers)
+  log.Printf("Spawning %d file workers", Config.FileWorkers)
 
-	for i := 0; i < Config.Workers; i++ {
-		worker[i] = S3Init()
-		go worker[i].fileCopier(quitChannel)
+	for i := 0; i < Config.FileWorkers; i++ {
+		fileWorker[i] = S3Init()
+		go fileWorker[i].fileCopier(quitChannel)
 	}
+
+  // 1 worker for the directory queue manager
+  go dirManager()
+
+  // N directory workers
+  for i := 0; i < Config.DirWorkers; i++ {
+    dirWorker[i] = S3Init()
+    go dirWorker[i].dirCopier(quitChannel)
+  }
+}
+
+func dirManager() {
+  iq.SliceIQ(DirCollector, NextDir)
 }
 
 func (s *S3Connection) CopyBucket() {
-	ScanDirs.PushBack("")
-	for ScanDirs.Len() > 0 {
-		dir, ok := ScanDirs.Remove(ScanDirs.Front()).(string)
-		if !ok {
-			log.Fatalf("Invalid value found on directory queue")
-		}
-		err := s.CopyDirectory(dir)
-		if err != nil {
-      log.Printf("Error copying directory: %v", err)
-			Errors.PushBack(err)
-		}
-	}
+	DirCollector <- ""
+
+  // How do I know every worker has nothing to do?
+  for true {
+  }
+
   printStats()
   s.Shutdown()
 }
@@ -133,9 +155,15 @@ func (s *S3Connection) Shutdown() {
   close(CopyFiles)
 
   finished := 0
-  for finished < Config.Workers {
+  for finished < Config.FileWorkers {
     finished += <-quitChannel
-    log.Printf("Worker quit..")
+    log.Printf("File Worker quit..")
+  }
+
+  finished = 0
+  for finished < Config.DirWorkers {
+    finished += <-quitChannel
+    log.Printf("Dir Worker quit..")
   }
 
   log.Printf("Final stats:")
@@ -188,13 +216,14 @@ func (s *S3Connection) CopyDirectory(dir string) error {
 
 	// push subdirectories onto directory queue
 	for i := 0; i < len(sourceList.CommonPrefixes); i++ {
-		ScanDirs.PushBack(sourceList.CommonPrefixes[i])
+    log.Printf("Pushing dir")
+		DirCollector <- sourceList.CommonPrefixes[i]
 	}
 
 	// push subdirectories that no longer exist onto queue
 	for i := 0; i < len(destList.CommonPrefixes); i++ {
 		if !inList(destList.CommonPrefixes[i], sourceList.CommonPrefixes) {
-			ScanDirs.PushBack(destList.CommonPrefixes[i])
+			DirCollector <- destList.CommonPrefixes[i]
 		}
 	}
 
@@ -218,3 +247,16 @@ func (s *S3Connection) CopyDirectory(dir string) error {
 
 	return nil
 }
+
+func (s *S3Connection) dirCopier(finished chan int) {
+  for dir := range NextDir {
+    err := s.CopyDirectory(dir)
+    if err != nil {
+      ErrorMutex.Lock()
+      Errors.PushBack(err)
+      ErrorMutex.Unlock()
+    }
+  }
+}
+
+

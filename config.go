@@ -15,7 +15,8 @@ type Target struct {
 type ConfigType struct {
 	Source  *Target
 	Dest    *Target
-	Workers int
+	FileWorkers int
+	DirWorkers int
 }
 
 var Config ConfigType

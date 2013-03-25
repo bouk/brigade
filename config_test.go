@@ -8,7 +8,8 @@ func TestTargetLoadFromJSON(t *testing.T) {
     {
       "Source": {"Server": "s3.com", "BucketName": "source_bucket", "AccessKey": "1234", "SecretAccessKey": "MySecretAccessKey"},
       "Dest": {"Server": "storage.google.com", "BucketName": "google_bucket", "AccessKey": "abcd", "SecretAccessKey": "MyOtherSecretAccessKey"},
-      "Workers": 20
+      "FileWorkers": 20,
+      "DirWorkers": 10
     }
   `)
 
@@ -46,7 +47,11 @@ func TestTargetLoadFromJSON(t *testing.T) {
 		t.Error("Config.Dest.SecretAccessKey incorrect")
 	}
 
-	if Config.Workers != 20 {
-		t.Error("Config.Workers incorrect")
+	if Config.FileWorkers != 20 {
+		t.Error("Config.FileWorkers incorrect")
+	}
+
+	if Config.DirWorkers != 10 {
+		t.Error("Config.DirWorkers incorrect")
 	}
 }

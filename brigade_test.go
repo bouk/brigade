@@ -9,6 +9,17 @@ import (
 var sourceBucketName string = "brigade-test-source"
 var destBucketName string = "brigade-test-destination"
 
+func TestDirManager(t *testing.T) {
+  DirCollector = make(chan string)
+  NextDir = make(chan string)
+  go dirManager()
+  DirCollector<-"Is this on"
+  result := <-NextDir
+  if result != "Is this on" {
+    t.Error("Dir Manager is not sane")
+  }
+}
+
 func TestCredentials(t *testing.T) {
 	if os.Getenv("ACCESS_KEY") == "" || os.Getenv("SECRET_ACCESS_KEY") == "" || os.Getenv("AWS_HOST") == "" {
 		t.Error("Please set ACCESS_KEY, SECRET_ACCESS_KEY, and AWS_HOST variables for integration tests")
@@ -20,7 +31,7 @@ func loadTarget(bucket string) *Target {
 }
 
 func LoadTestConfig() {
-	Config = ConfigType{Source: loadTarget(sourceBucketName), Dest: loadTarget(destBucketName), Workers: 0}
+	Config = ConfigType{Source: loadTarget(sourceBucketName), Dest: loadTarget(destBucketName), FileWorkers: 0, DirWorkers: 1}
 }
 
 type fileFixture struct {
@@ -129,18 +140,14 @@ func TestCopyDirectory(t *testing.T) {
 
 	conn.CopyDirectory("")
 
-	if ScanDirs.Len() != 2 {
-		t.Error("Nothing on ScanDirs queue")
-		return
-	}
-	converted, ok := ScanDirs.Front().Value.(string)
-	if !ok || converted != "animals/" {
-		t.Error("CopyDirectory failed to push subdirectory onto ScanDirs")
+	dir := <-NextDir
+	if dir != "vehicles/" {
+		t.Errorf("CopyDirectory: expected animals/ received %s", dir)
 		return
 	}
 
-	converted, ok = ScanDirs.Back().Value.(string)
-	if !ok || converted != "vehicles/" {
+	dir = <-NextDir
+	if dir != "animals/" {
 		t.Error("CopyDirectory failed to push subdirectory onto ScanDirs")
 		return
 	}
@@ -158,11 +165,6 @@ func TestCopyBucket(t *testing.T) {
 	conn := S3Init()
 
 	conn.CopyBucket()
-
-	if ScanDirs.Len() != 0 {
-		t.Error("CopyBucket left directories to scan")
-		return
-	}
 
 	copyExpected := []string{"house2", "house5", "animals/dog"}
 
