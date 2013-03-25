@@ -10,14 +10,14 @@ var sourceBucketName string = "brigade-test-source"
 var destBucketName string = "brigade-test-destination"
 
 func TestDirManager(t *testing.T) {
-  DirCollector = make(chan string)
-  NextDir = make(chan string)
-  go dirManager()
-  DirCollector<-"Is this on"
-  result := <-NextDir
-  if result != "Is this on" {
-    t.Error("Dir Manager is not sane")
-  }
+	DirCollector = make(chan string)
+	NextDir = make(chan string)
+	go dirManager()
+	DirCollector <- "Is this on"
+	result := <-NextDir
+	if result != "Is this on" {
+		t.Error("Dir Manager is not sane")
+	}
 }
 
 func TestCredentials(t *testing.T) {

@@ -13,10 +13,10 @@ type Target struct {
 }
 
 type ConfigType struct {
-	Source  *Target
-	Dest    *Target
+	Source      *Target
+	Dest        *Target
 	FileWorkers int
-	DirWorkers int
+	DirWorkers  int
 }
 
 var Config ConfigType

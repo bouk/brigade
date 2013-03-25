@@ -1,10 +1,10 @@
 package main
 
 import (
-  "github.com/tobi/airbrake-go"
-  "github.com/shopify/stats/env"
 	"errors"
 	"fmt"
+	"github.com/shopify/stats/env"
+	"github.com/tobi/airbrake-go"
 	"log"
 	"os"
 )
@@ -24,16 +24,15 @@ func main() {
 		defer logFile.Close()
 	}
 
-  log := 300
+	log := 300
 
 	if log > 0 {
 		go statsWorker(log)
 	}
 
-  readConfig()
+	readConfig()
 
-  Init()
-  bucketCopier := S3Init()
-  bucketCopier.CopyBucket()
+	Init()
+	bucketCopier := S3Init()
+	bucketCopier.CopyBucket()
 }
-
