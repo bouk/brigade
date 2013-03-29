@@ -2,41 +2,38 @@ package main
 
 import (
 	"github.com/boourns/goamz/s3"
-	"github.com/boourns/iq"
-	"log"
 )
 
-var DirCollector chan string
-var NextDir chan string
-
-func dirManager() {
-	iq.SliceIQ(DirCollector, NextDir)
+func addError(err error) {
+  ErrorMutex.Lock()
+  Errors.PushBack(err)
+  ErrorMutex.Unlock()
 }
 
-func (s *S3Connection) CopyDirectory(dir string) error {
+var PendingDirectories int
+var dirConnections chan *S3Connection
+
+func cleanup (s *S3Connection) {
+  PendingDirectories -= 1
+  dirConnections <- s
+}
+
+func CopyDirectory(dir string) {
+  PendingDirectories += 1
+  s := <-dirConnections
+  defer cleanup(s)
 	Stats.directories++
 
 	sourceList, err := s.SourceBucket.List(dir, "/", "", 1000)
 	if err != nil {
-		return err
+    addError(err)
+		return
 	}
 
 	destList, err := s.DestBucket.List(dir, "/", "", 1000)
 	if err != nil {
-		return err
-	}
-
-	// push subdirectories onto directory queue
-	for i := 0; i < len(sourceList.CommonPrefixes); i++ {
-		log.Printf("Pushing dir")
-		DirCollector <- sourceList.CommonPrefixes[i]
-	}
-
-	// push subdirectories that no longer exist onto queue
-	for i := 0; i < len(destList.CommonPrefixes); i++ {
-		if !inList(destList.CommonPrefixes[i], sourceList.CommonPrefixes) {
-			DirCollector <- destList.CommonPrefixes[i]
-		}
+    addError(err)
+		return
 	}
 
 	// push changed files onto file queue
@@ -57,16 +54,15 @@ func (s *S3Connection) CopyDirectory(dir string) error {
 		}
 	}
 
-	return nil
-}
+	// push subdirectories onto directory queue
+	for i := 0; i < len(sourceList.CommonPrefixes); i++ {
+		go CopyDirectory(sourceList.CommonPrefixes[i])
+	}
 
-func (s *S3Connection) dirCopier(finished chan int) {
-	for dir := range NextDir {
-		err := s.CopyDirectory(dir)
-		if err != nil {
-			ErrorMutex.Lock()
-			Errors.PushBack(err)
-			ErrorMutex.Unlock()
+	// push subdirectories that no longer exist onto queue
+	for i := 0; i < len(destList.CommonPrefixes); i++ {
+		if !inList(destList.CommonPrefixes[i], sourceList.CommonPrefixes) {
+			go CopyDirectory(destList.CommonPrefixes[i])
 		}
 	}
 }

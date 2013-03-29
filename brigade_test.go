@@ -4,21 +4,11 @@ import (
 	"github.com/boourns/goamz/s3"
 	"os"
 	"testing"
+  "time"
 )
 
 var sourceBucketName string = "brigade-test-source"
 var destBucketName string = "brigade-test-destination"
-
-func TestDirManager(t *testing.T) {
-	DirCollector = make(chan string)
-	NextDir = make(chan string)
-	go dirManager()
-	DirCollector <- "Is this on"
-	result := <-NextDir
-	if result != "Is this on" {
-		t.Error("Dir Manager is not sane")
-	}
-}
 
 func TestCredentials(t *testing.T) {
 	if os.Getenv("ACCESS_KEY") == "" || os.Getenv("SECRET_ACCESS_KEY") == "" || os.Getenv("AWS_HOST") == "" {
@@ -136,21 +126,12 @@ func TestCopyDirectory(t *testing.T) {
 	}
 
 	LoadTestConfig()
-	conn := S3Init()
 
-	conn.CopyDirectory("")
+	CopyDirectory("")
 
-	dir := <-NextDir
-	if dir != "vehicles/" {
-		t.Errorf("CopyDirectory: expected animals/ received %s", dir)
-		return
-	}
-
-	dir = <-NextDir
-	if dir != "animals/" {
-		t.Error("CopyDirectory failed to push subdirectory onto ScanDirs")
-		return
-	}
+  for PendingDirectories > 0 {
+    time.Sleep(time.Second)
+  }
 }
 
 func TestCopyBucket(t *testing.T) {

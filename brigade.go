@@ -14,6 +14,7 @@ var ErrorMutex sync.Mutex
 var CopyFiles chan string
 var DeleteFiles chan string
 
+
 type S3Connection struct {
 	Source       *s3.S3
 	Dest         *s3.S3
@@ -57,12 +58,10 @@ func Init() {
 
 	CopyFiles = make(chan string, 1000)
 	DeleteFiles = make(chan string, 100)
-	DirCollector = make(chan string)
-	NextDir = make(chan string)
 
 	quitChannel = make(chan int)
 	fileWorker = make([]*S3Connection, Config.FileWorkers)
-	dirWorker = make([]*S3Connection, Config.DirWorkers)
+	dirConnections = make(chan *S3Connection, Config.DirWorkers)
 
 	// spawn workers
 	log.Printf("Spawning %d file workers", Config.FileWorkers)
@@ -72,22 +71,14 @@ func Init() {
 		go fileWorker[i].fileCopier(quitChannel)
 	}
 
-	// 1 worker for the directory queue manager
-	go dirManager()
-
 	// N directory workers
 	for i := 0; i < Config.DirWorkers; i++ {
-		dirWorker[i] = S3Init()
-		go dirWorker[i].dirCopier(quitChannel)
+		dirConnections<-S3Init()
 	}
 }
 
 func (s *S3Connection) CopyBucket() {
-	DirCollector <- ""
-
-	// How do I know every worker has nothing to do?
-	for true {
-	}
+  go CopyDirectory("")
 
 	printStats()
 	s.Shutdown()
