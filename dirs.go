@@ -46,7 +46,7 @@ func (s *S3Connection) dirWorker(quitChannel chan int) {
 			key := destList.Contents[i]
 			_, found := findKey(key.Key, sourceList)
 			if !found {
-				DeleteFiles <- key.Key
+			//	DeleteFiles <- key.Key
 			}
 		}
 
