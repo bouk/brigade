@@ -14,7 +14,6 @@ var ErrorMutex sync.Mutex
 var CopyFiles chan string
 var DeleteFiles chan string
 
-
 type S3Connection struct {
 	Source       *s3.S3
 	Dest         *s3.S3
@@ -46,67 +45,4 @@ func S3Init() *S3Connection {
 	s.DestBucket = s.Source.Bucket(Config.Dest.BucketName)
 
 	return s
-}
-
-var fileWorker []*S3Connection
-var dirWorker []*S3Connection
-
-var quitChannel chan int
-
-func Init() {
-	Errors = list.New()
-
-	CopyFiles = make(chan string, 1000)
-	DeleteFiles = make(chan string, 100)
-
-	quitChannel = make(chan int)
-	fileWorker = make([]*S3Connection, Config.FileWorkers)
-	dirConnections = make(chan *S3Connection, Config.DirWorkers)
-
-	// spawn workers
-	log.Printf("Spawning %d file workers", Config.FileWorkers)
-
-	for i := 0; i < Config.FileWorkers; i++ {
-		fileWorker[i] = S3Init()
-		go fileWorker[i].fileCopier(quitChannel)
-	}
-
-	// N directory workers
-	for i := 0; i < Config.DirWorkers; i++ {
-		dirConnections<-S3Init()
-	}
-}
-
-func (s *S3Connection) CopyBucket() {
-  go CopyDirectory("")
-
-	printStats()
-	s.Shutdown()
-}
-
-func (s *S3Connection) Shutdown() {
-	log.Printf("Shutting down..")
-	close(CopyFiles)
-
-	finished := 0
-	for finished < Config.FileWorkers {
-		finished += <-quitChannel
-		log.Printf("File Worker quit..")
-	}
-
-	finished = 0
-	for finished < Config.DirWorkers {
-		finished += <-quitChannel
-		log.Printf("Dir Worker quit..")
-	}
-
-	log.Printf("Final stats:")
-	printStats()
-
-	if Errors.Len() > 0 {
-		log.Printf("%v Errors:", Errors.Len())
-		for Errors.Len() > 0 {
-			log.Printf("%v", Errors.Remove(Errors.Front()))
-		}
-	}
 }

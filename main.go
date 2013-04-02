@@ -1,6 +1,7 @@
 package main
 
 import (
+	"container/list"
 	"errors"
 	"fmt"
 	"github.com/shopify/stats/env"
@@ -8,6 +9,24 @@ import (
 	"log"
 	"os"
 )
+
+var (
+	fileWorker         []*S3Connection
+	dirWorker          []*S3Connection
+	PendingDirectories int
+
+	dirConnections     chan *S3Connection
+	dirWorkersFinished chan int
+	quitChannel        chan int
+)
+
+func init() {
+	CopyFiles = make(chan string, 1000)
+	DeleteFiles = make(chan string, 100)
+
+	quitChannel = make(chan int)
+	dirWorkersFinished = make(chan int)
+}
 
 func main() {
 	airbrake.Endpoint = "https://exceptions.shopify.com/notifier_api/v2/notices.xml"
@@ -32,7 +51,50 @@ func main() {
 
 	readConfig()
 
-	Init()
-	bucketCopier := S3Init()
-	bucketCopier.CopyBucket()
+	Initialize()
+	CopyDirectory("")
+
+	<-dirWorkersFinished
+	shutdown()
+}
+
+func Initialize() {
+	fileWorker = make([]*S3Connection, Config.FileWorkers)
+	dirConnections = make(chan *S3Connection, Config.DirWorkers)
+
+	Errors = list.New()
+
+	// spawn workers
+	log.Printf("Spawning %d file workers", Config.FileWorkers)
+
+	for i := 0; i < Config.FileWorkers; i++ {
+		fileWorker[i] = S3Init()
+		go fileWorker[i].fileCopier(quitChannel)
+	}
+
+	// N directory workers
+	for i := 0; i < Config.DirWorkers; i++ {
+		dirConnections <- S3Init()
+	}
+}
+
+func shutdown() {
+	log.Printf("Shutting down..")
+	close(CopyFiles)
+
+	finished := 0
+	for finished < Config.FileWorkers {
+		finished += <-quitChannel
+		log.Printf("File Worker quit..")
+	}
+
+	log.Printf("Final stats:")
+	printStats()
+
+	if Errors.Len() > 0 {
+		log.Printf("%v Errors:", Errors.Len())
+		for Errors.Len() > 0 {
+			log.Printf("%v", Errors.Remove(Errors.Front()))
+		}
+	}
 }

@@ -5,34 +5,39 @@ import (
 )
 
 func addError(err error) {
-  ErrorMutex.Lock()
-  Errors.PushBack(err)
-  ErrorMutex.Unlock()
+	ErrorMutex.Lock()
+	Errors.PushBack(err)
+	ErrorMutex.Unlock()
 }
 
-var PendingDirectories int
-var dirConnections chan *S3Connection
+func cleanup(s *S3Connection) {
+	PendingDirectories -= 1
 
-func cleanup (s *S3Connection) {
-  PendingDirectories -= 1
-  dirConnections <- s
+	if PendingDirectories == 0 {
+		dirWorkersFinished <- 1
+	}
+	dirConnections <- s
 }
 
 func CopyDirectory(dir string) {
-  PendingDirectories += 1
-  s := <-dirConnections
-  defer cleanup(s)
+	PendingDirectories += 1
+	go directoryWorker(dir)
+}
+
+func directoryWorker(dir string) {
+	s := <-dirConnections
+	defer cleanup(s)
 	Stats.directories++
 
 	sourceList, err := s.SourceBucket.List(dir, "/", "", 1000)
 	if err != nil {
-    addError(err)
+		addError(err)
 		return
 	}
 
 	destList, err := s.DestBucket.List(dir, "/", "", 1000)
 	if err != nil {
-    addError(err)
+		addError(err)
 		return
 	}
 
@@ -56,13 +61,13 @@ func CopyDirectory(dir string) {
 
 	// push subdirectories onto directory queue
 	for i := 0; i < len(sourceList.CommonPrefixes); i++ {
-		go CopyDirectory(sourceList.CommonPrefixes[i])
+		CopyDirectory(sourceList.CommonPrefixes[i])
 	}
 
 	// push subdirectories that no longer exist onto queue
 	for i := 0; i < len(destList.CommonPrefixes); i++ {
 		if !inList(destList.CommonPrefixes[i], sourceList.CommonPrefixes) {
-			go CopyDirectory(destList.CommonPrefixes[i])
+			CopyDirectory(destList.CommonPrefixes[i])
 		}
 	}
 }

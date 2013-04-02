@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/boourns/goamz/s3"
 	"log"
-  "strconv"
+	"strconv"
 )
 
 func (s *S3Connection) fileCopier(finished chan int) {
@@ -18,8 +18,6 @@ func (s *S3Connection) fileCopier(finished chan int) {
 			ErrorMutex.Unlock()
 			continue
 		}
-
-		log.Printf("Copying file %s\n", key)
 
 		if source.Header["Content-Length"] == nil || len(source.Header["Content-Length"]) != 1 {
 			log.Printf("Missing Content-Length for key %s\n", key)
