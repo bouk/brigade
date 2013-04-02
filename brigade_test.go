@@ -4,7 +4,7 @@ import (
 	"github.com/boourns/goamz/s3"
 	"os"
 	"testing"
-  "time"
+	"time"
 )
 
 var sourceBucketName string = "brigade-test-source"
@@ -96,7 +96,7 @@ func TestConnection(t *testing.T) {
 }
 
 func TestFindKey(t *testing.T) {
-	Init()
+	setup()
 
 	err := SetupBuckets()
 	if err != nil {
@@ -118,7 +118,7 @@ func TestFindKey(t *testing.T) {
 }
 
 func TestCopyDirectory(t *testing.T) {
-	Init()
+	setup()
 
 	err := SetupBuckets()
 	if err != nil {
@@ -127,15 +127,15 @@ func TestCopyDirectory(t *testing.T) {
 
 	LoadTestConfig()
 
-	CopyDirectory("")
+	//CopyDirectory("")
 
-  for PendingDirectories > 0 {
-    time.Sleep(time.Second)
-  }
+	for PendingDirectories > 0 {
+		time.Sleep(time.Second)
+	}
 }
 
 func TestCopyBucket(t *testing.T) {
-	Init()
+	setup()
 
 	err := SetupBuckets()
 	if err != nil {
@@ -178,7 +178,7 @@ func TestCopyBucket(t *testing.T) {
 }
 
 func TestReadMIME(t *testing.T) {
-	Init()
+	setup()
 
 	err := SetupBuckets()
 	if err != nil {

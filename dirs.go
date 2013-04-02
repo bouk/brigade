@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/boourns/goamz/s3"
+	"github.com/boourns/iq"
 )
 
 func addError(err error) {
@@ -10,66 +11,65 @@ func addError(err error) {
 	ErrorMutex.Unlock()
 }
 
-func cleanup(s *S3Connection) {
-	PendingDirectories -= 1
-
-	if PendingDirectories == 0 {
-		dirWorkersFinished <- 1
-	}
-	dirConnections <- s
+func DirManager() {
+	iq.SliceIQ(DirCollector, NextDir)
 }
 
-func CopyDirectory(dir string) {
-	PendingDirectories += 1
-	go directoryWorker(dir)
-}
+func (s *S3Connection) dirWorker(quitChannel chan int) {
 
-func directoryWorker(dir string) {
-	s := <-dirConnections
-	defer cleanup(s)
-	Stats.directories++
+	for dir := range NextDir {
+		Stats.directories++
 
-	sourceList, err := s.SourceBucket.List(dir, "/", "", 1000)
-	if err != nil {
-		addError(err)
-		return
-	}
+		sourceList, err := s.SourceBucket.List(dir, "/", "", 1000)
+		if err != nil {
+			addError(err)
+			return
+		}
 
-	destList, err := s.DestBucket.List(dir, "/", "", 1000)
-	if err != nil {
-		addError(err)
-		return
-	}
+		destList, err := s.DestBucket.List(dir, "/", "", 1000)
+		if err != nil {
+			addError(err)
+			return
+		}
 
-	// push changed files onto file queue
-	for i := 0; i < len(sourceList.Contents); i++ {
-		key := sourceList.Contents[i]
-		existing, found := findKey(key.Key, destList)
-		if !found || keyChanged(key, existing) {
-			CopyFiles <- key.Key
+		// push changed files onto file queue
+		for i := 0; i < len(sourceList.Contents); i++ {
+			key := sourceList.Contents[i]
+			existing, found := findKey(key.Key, destList)
+			if !found || keyChanged(key, existing) {
+				CopyFiles <- key.Key
+			}
+		}
+
+		// push removed files onto delete list
+		for i := 0; i < len(destList.Contents); i++ {
+			key := destList.Contents[i]
+			_, found := findKey(key.Key, sourceList)
+			if !found {
+				DeleteFiles <- key.Key
+			}
+		}
+
+		// push subdirectories onto directory queue
+		for i := 0; i < len(sourceList.CommonPrefixes); i++ {
+			PendingDirectories += 1
+			DirCollector <- sourceList.CommonPrefixes[i]
+		}
+
+		// push subdirectories that no longer exist onto queue
+		for i := 0; i < len(destList.CommonPrefixes); i++ {
+			if !inList(destList.CommonPrefixes[i], sourceList.CommonPrefixes) {
+				PendingDirectories += 1
+				DirCollector <- destList.CommonPrefixes[i]
+			}
+		}
+		PendingDirectories -= 1
+
+		if PendingDirectories == 0 {
+			dirWorkersFinished <- 1
 		}
 	}
-
-	// push removed files onto delete list
-	for i := 0; i < len(destList.Contents); i++ {
-		key := destList.Contents[i]
-		_, found := findKey(key.Key, sourceList)
-		if !found {
-			DeleteFiles <- key.Key
-		}
-	}
-
-	// push subdirectories onto directory queue
-	for i := 0; i < len(sourceList.CommonPrefixes); i++ {
-		CopyDirectory(sourceList.CommonPrefixes[i])
-	}
-
-	// push subdirectories that no longer exist onto queue
-	for i := 0; i < len(destList.CommonPrefixes); i++ {
-		if !inList(destList.CommonPrefixes[i], sourceList.CommonPrefixes) {
-			CopyDirectory(destList.CommonPrefixes[i])
-		}
-	}
+	quitChannel <- 1
 }
 
 func keyChanged(src s3.Key, dest s3.Key) bool {

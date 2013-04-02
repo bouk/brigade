@@ -15,17 +15,25 @@ var (
 	dirWorker          []*S3Connection
 	PendingDirectories int
 
-	dirConnections     chan *S3Connection
+	DirCollector chan string
+	NextDir      chan string
+
 	dirWorkersFinished chan int
-	quitChannel        chan int
+	fileWorkerQuit     chan int
+	dirWorkerQuit      chan int
 )
 
 func init() {
 	CopyFiles = make(chan string, 1000)
 	DeleteFiles = make(chan string, 100)
 
-	quitChannel = make(chan int)
+	fileWorkerQuit = make(chan int)
+	dirWorkerQuit = make(chan int)
+
 	dirWorkersFinished = make(chan int)
+
+	DirCollector = make(chan string)
+	NextDir = make(chan string)
 }
 
 func main() {
@@ -51,16 +59,18 @@ func main() {
 
 	readConfig()
 
-	Initialize()
-	CopyDirectory("")
+	setup()
+
+	PendingDirectories += 1
+	DirCollector <- ""
 
 	<-dirWorkersFinished
 	shutdown()
 }
 
-func Initialize() {
+func setup() {
 	fileWorker = make([]*S3Connection, Config.FileWorkers)
-	dirConnections = make(chan *S3Connection, Config.DirWorkers)
+	dirWorker = make([]*S3Connection, Config.DirWorkers)
 
 	Errors = list.New()
 
@@ -69,23 +79,36 @@ func Initialize() {
 
 	for i := 0; i < Config.FileWorkers; i++ {
 		fileWorker[i] = S3Init()
-		go fileWorker[i].fileCopier(quitChannel)
+		go fileWorker[i].fileCopier(fileWorkerQuit)
 	}
+
+	// 1 worker for the directory queue manager
+	go DirManager()
 
 	// N directory workers
 	for i := 0; i < Config.DirWorkers; i++ {
-		dirConnections <- S3Init()
+		dirWorker[i] = S3Init()
+		go dirWorker[i].dirWorker(dirWorkerQuit)
 	}
 }
 
 func shutdown() {
 	log.Printf("Shutting down..")
 	close(CopyFiles)
+	close(DirCollector)
 
+	printStats()
 	finished := 0
 	for finished < Config.FileWorkers {
-		finished += <-quitChannel
+		finished += <-fileWorkerQuit
 		log.Printf("File Worker quit..")
+	}
+
+	printStats()
+	finished = 0
+	for finished < Config.DirWorkers {
+		finished += <-dirWorkerQuit
+		log.Printf("Directory Worker quit..")
 	}
 
 	log.Printf("Final stats:")
