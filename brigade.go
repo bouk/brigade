@@ -1,14 +1,13 @@
 package main
 
 import (
-	"container/list"
 	"github.com/boourns/goamz/s3"
 	"launchpad.net/goamz/aws"
 	"log"
 	"sync"
 )
 
-var Errors *list.List
+var Errors []error
 var ErrorMutex sync.Mutex
 
 var CopyFiles chan string

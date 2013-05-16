@@ -7,7 +7,7 @@ import (
 
 func addError(err error) {
 	ErrorMutex.Lock()
-	Errors.PushBack(err)
+	Errors = append(Errors, err)
 	ErrorMutex.Unlock()
 }
 

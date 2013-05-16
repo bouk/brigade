@@ -1,7 +1,6 @@
 package main
 
 import (
-	"container/list"
 	"errors"
 	"fmt"
 	"github.com/shopify/stats/env"
@@ -72,8 +71,6 @@ func setup() {
 	fileWorker = make([]*S3Connection, Config.FileWorkers)
 	dirWorker = make([]*S3Connection, Config.DirWorkers)
 
-	Errors = list.New()
-
 	// spawn workers
 	log.Printf("Spawning %d file workers", Config.FileWorkers)
 
@@ -114,10 +111,10 @@ func shutdown() {
 	log.Printf("Final stats:")
 	printStats()
 
-	if Errors.Len() > 0 {
-		log.Printf("%v Errors:", Errors.Len())
-		for Errors.Len() > 0 {
-			log.Printf("%v", Errors.Remove(Errors.Front()))
+	if len(Errors) > 0 {
+		log.Printf("%v Errors:", len(Errors))
+		for err := range Errors {
+			log.Printf("%v", err)
 		}
 	}
 }
