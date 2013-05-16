@@ -7,6 +7,7 @@ import (
 	"github.com/tobi/airbrake-go"
 	"log"
 	"os"
+	"time"
 )
 
 var (
@@ -89,11 +90,20 @@ func setup() {
 	}
 }
 
+func kill() {
+	// force death if shutting down takes > 20 minutes
+	time.Sleep(20 * time.Minute)
+	log.Printf("Shutdown took more than 20 minutes, forcing exit")
+	printStats()
+	os.Exit(1)
+}
+
 func shutdown() {
 	log.Printf("Shutting down..")
 	close(CopyFiles)
 	close(DirCollector)
 
+	go kill()
 	printStats()
 	finished := 0
 	for finished < Config.FileWorkers {
