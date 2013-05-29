@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/shopify/stats/env"
 	"github.com/tobi/airbrake-go"
 	"log"
 	"os"
@@ -40,10 +39,10 @@ func main() {
 	airbrake.Endpoint = "https://exceptions.shopify.com/notifier_api/v2/notices.xml"
 	airbrake.ApiKey = "795dbf40b8743457f64fe9b9abc843fa"
 
-	if len(env.Get("log")) > 0 {
-		logFile, err := os.OpenFile(env.Get("log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if len(os.Getenv("log")) > 0 {
+		logFile, err := os.OpenFile(os.Getenv("log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 		if err != nil {
-			err = errors.New(fmt.Sprintf("Could not open log file %s for writing: %s", env.Get("log"), err.Error()))
+			err = errors.New(fmt.Sprintf("Could not open log file %s for writing: %s", os.Getenv("log"), err.Error()))
 			airbrake.Error(err, nil)
 			log.Fatal(err)
 		}
