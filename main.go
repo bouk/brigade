@@ -36,8 +36,6 @@ func init() {
 }
 
 func main() {
-	airbrake.Endpoint = "https://exceptions.shopify.com/notifier_api/v2/notices.xml"
-	airbrake.ApiKey = "795dbf40b8743457f64fe9b9abc843fa"
 
 	if len(os.Getenv("log")) > 0 {
 		logFile, err := os.OpenFile(os.Getenv("log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
