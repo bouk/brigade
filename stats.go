@@ -1,7 +1,10 @@
 package main
 
-import "time"
-import "log"
+import (
+  "time"
+  "log"
+  "fmt"
+)
 
 var start time.Time
 
@@ -15,8 +18,14 @@ type StatsType struct {
 
 var Stats StatsType
 
+var lastLog string
+
 func printStats() {
-	log.Printf("%+v", Stats)
+  newLog := fmt.Sprintf("%+v", Stats)
+  if newLog != lastLog {
+    lastLog = newLog
+    log.Printf(lastLog)
+  }
 }
 
 func statsWorker(period int) {
