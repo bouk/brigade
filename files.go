@@ -28,6 +28,7 @@ func (s *S3Connection) copyFile(key string) {
 		addError(err)
 		return
 	}
+	defer source.Body.Close()
 
 	if source.Header["Content-Length"] == nil || len(source.Header["Content-Length"]) != 1 {
 		log.Printf("Missing Content-Length for key %s\n", key)
