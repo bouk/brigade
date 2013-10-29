@@ -36,6 +36,7 @@ func readConfig() {
 		log.Printf("Error opening config file: %s", err)
 		return
 	}
+	defer f.Close()
 
 	loadConfig(f)
 }

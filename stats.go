@@ -1,9 +1,9 @@
 package main
 
 import (
-  "time"
-  "log"
-  "fmt"
+	"fmt"
+	"log"
+	"time"
 )
 
 var start time.Time
@@ -21,11 +21,11 @@ var Stats StatsType
 var lastLog string
 
 func printStats() {
-  newLog := fmt.Sprintf("%+v", Stats)
-  if newLog != lastLog {
-    lastLog = newLog
-    log.Printf(lastLog)
-  }
+	newLog := fmt.Sprintf("%+v", Stats)
+	if newLog != lastLog {
+		lastLog = newLog
+		log.Printf(lastLog)
+	}
 }
 
 func statsWorker(period int) {

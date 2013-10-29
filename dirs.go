@@ -85,13 +85,11 @@ func inList(input string, list []string) bool {
 	return false
 }
 
-var nilKey s3.Key
-
 func findKey(name string, list *s3.ListResp) (s3.Key, bool) {
 	for i := 0; i < len(list.Contents); i++ {
 		if list.Contents[i].Key == name {
 			return list.Contents[i], true
 		}
 	}
-	return nilKey, false
+	return nil, false
 }

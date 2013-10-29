@@ -91,7 +91,7 @@ func kill() {
 	// force death if shutting down takes > 20 minutes
 	time.Sleep(20 * time.Minute)
 	log.Printf("Shutdown took more than 20 minutes, forcing exit")
-  finale()
+	finale()
 	os.Exit(1)
 }
 
@@ -99,14 +99,14 @@ func finale() {
 	log.Printf("Final stats:")
 	printStats()
 
-  ErrorMutex.Lock()
+	ErrorMutex.Lock()
 	if len(Errors) > 0 {
 		log.Printf("%v Errors:", len(Errors))
 		for err := range Errors {
 			log.Printf("%v", err)
 		}
 	}
-  ErrorMutex.Unlock()
+	ErrorMutex.Unlock()
 }
 
 func shutdown() {
@@ -128,5 +128,5 @@ func shutdown() {
 		finished += <-dirWorkerQuit
 		log.Printf("Directory Worker quit..")
 	}
-  finale()
+	finale()
 }
