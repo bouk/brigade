@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/boourns/goamz/s3"
 	"github.com/boourns/iq"
+	"github.com/bouk/goamz/s3"
 	"sync/atomic"
 )
 

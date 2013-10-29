@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/boourns/goamz/s3"
-	"launchpad.net/goamz/aws"
+	"github.com/bouk/goamz/s3"
+	"github.com/mitchellh/goamz/aws"
 	"log"
 	"sync"
 )
@@ -25,7 +25,7 @@ func S3Connect(t *Target) *s3.S3 {
 		log.Fatalf("Target was not loaded")
 	}
 
-	auth := aws.Auth{t.AccessKey, t.SecretAccessKey}
+	auth := aws.Auth{t.AccessKey, t.SecretAccessKey, ""}
 	return s3.New(auth, aws.Region{S3Endpoint: t.Server})
 }
 
