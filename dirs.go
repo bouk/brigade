@@ -91,5 +91,5 @@ func findKey(name string, list *s3.ListResp) (s3.Key, bool) {
 			return list.Contents[i], true
 		}
 	}
-	return nil, false
+	return s3.Key{}, false
 }
