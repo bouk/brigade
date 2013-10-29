@@ -6,13 +6,14 @@ import (
 	"github.com/tobi/airbrake-go"
 	"log"
 	"os"
+	"sync/atomic"
 	"time"
 )
 
 var (
 	fileWorker         []*S3Connection
 	dirWorker          []*S3Connection
-	PendingDirectories int
+	PendingDirectories int64
 
 	DirCollector chan string
 	NextDir      chan string
@@ -58,7 +59,7 @@ func main() {
 
 	setup()
 
-	PendingDirectories += 1
+	atomic.AddInt64(&PendingDirectories, 1)
 	DirCollector <- ""
 
 	<-dirWorkersFinished

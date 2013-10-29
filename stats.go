@@ -9,11 +9,11 @@ import (
 var start time.Time
 
 type StatsType struct {
-	files       int
-	directories int
+	files       int64
+	directories int64
 	bytes       int64
-	working     int
-	errors      int
+	working     int64
+	errors      int64
 }
 
 var Stats StatsType

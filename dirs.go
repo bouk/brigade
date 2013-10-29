@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/boourns/goamz/s3"
 	"github.com/boourns/iq"
+	"sync/atomic"
 )
 
 func addError(err error) {
@@ -18,7 +19,7 @@ func DirManager() {
 func (s *S3Connection) dirWorker(quitChannel chan int) {
 
 	for dir := range NextDir {
-		Stats.directories++
+		atomic.AddInt64(&Stats.directories, 1)
 
 		sourceList, err := s.SourceBucket.List(dir, "/", "", 1000)
 		if err != nil {
@@ -52,18 +53,18 @@ func (s *S3Connection) dirWorker(quitChannel chan int) {
 
 		// push subdirectories onto directory queue
 		for i := 0; i < len(sourceList.CommonPrefixes); i++ {
-			PendingDirectories += 1
+			atomic.AddInt64(&PendingDirectories, 1)
 			DirCollector <- sourceList.CommonPrefixes[i]
 		}
 
 		// push subdirectories that no longer exist onto queue
 		for i := 0; i < len(destList.CommonPrefixes); i++ {
 			if !inList(destList.CommonPrefixes[i], sourceList.CommonPrefixes) {
-				PendingDirectories += 1
+				atomic.AddInt64(&PendingDirectories, 1)
 				DirCollector <- destList.CommonPrefixes[i]
 			}
 		}
-		PendingDirectories -= 1
+		atomic.AddInt64(&PendingDirectories, -1)
 
 		if PendingDirectories == 0 {
 			dirWorkersFinished <- 1

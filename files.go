@@ -4,6 +4,7 @@ import (
 	"github.com/boourns/goamz/s3"
 	"log"
 	"strconv"
+	"sync/atomic"
 )
 
 func (s *S3Connection) fileCopier(finished chan int) {
@@ -15,9 +16,12 @@ func (s *S3Connection) fileCopier(finished chan int) {
 }
 
 func (s *S3Connection) copyFile(key string) {
-	Stats.files++
-	Stats.working++
-	defer func() { Stats.working-- }()
+	atomic.AddInt64(&Stats.files, 1)
+	atomic.AddInt64(&Stats.working, 1)
+
+	defer func() {
+		atomic.AddInt64(&Stats.working, -1)
+	}()
 
 	source, err := s.SourceBucket.GetResponse(key)
 	if err != nil {
@@ -47,6 +51,6 @@ func (s *S3Connection) copyFile(key string) {
 	if err != nil {
 		addError(err)
 	} else {
-		Stats.bytes += length
+		atomic.AddInt64(&Stats.bytes, length)
 	}
 }
