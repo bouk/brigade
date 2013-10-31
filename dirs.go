@@ -11,62 +11,61 @@ func DirManager() {
 }
 
 func pushDirectory(key string) {
-	atomic.AddInt64(&PendingDirectories, 1)
+	atomic.AddInt64(&Stats.directories, 1)
+	statsUpdated()
+	dirworkerGroup.Add(1)
 	DirCollector <- key
+}
+
+func (s *S3Connection) pushFile(key string) {
+	atomic.AddInt64(&Stats.files, 1)
+	statsUpdated()
+	fileGroup.Add(1)
+	go s.copyFileInWaitGroup(key)
 }
 
 func (s *S3Connection) dirWorker(quitChannel chan int) {
 	for dir := range NextDir {
-		atomic.AddInt64(&Stats.directories, 1)
-
-		sourceList, err := s.Source.List(dir, "/", "", 1000)
-		if err != nil {
-			addError(err)
-			return
-		}
-
-		destList, err := s.Destination.List(dir, "/", "", 1000)
-		if err != nil {
-			addError(err)
-			return
-		}
-
-		// push changed files onto file queue
-		for i := 0; i < len(sourceList.Contents); i++ {
-			key := sourceList.Contents[i]
-			existing, found := findKey(key.Key, destList)
-			if !found || keyChanged(key, existing) {
-				CopyFiles <- key.Key
-			}
-		}
-
-		// push removed files onto delete list
-		for i := 0; i < len(destList.Contents); i++ {
-			key := destList.Contents[i]
-			_, found := findKey(key.Key, sourceList)
-			if !found {
-				//	DeleteFiles <- key.Key
-			}
-		}
-
-		// push subdirectories onto directory queue
-		for i := 0; i < len(sourceList.CommonPrefixes); i++ {
-			pushDirectory(sourceList.CommonPrefixes[i])
-		}
-
-		// push subdirectories that no longer exist onto queue
-		for i := 0; i < len(destList.CommonPrefixes); i++ {
-			if !inList(destList.CommonPrefixes[i], sourceList.CommonPrefixes) {
-				pushDirectory(destList.CommonPrefixes[i])
-			}
-		}
-		atomic.AddInt64(&PendingDirectories, -1)
-
-		if PendingDirectories == 0 {
-			dirWorkersFinished <- 1
-		}
+		s.workDir(dir)
 	}
 	quitChannel <- 1
+}
+
+func (s *S3Connection) workDir(dir string) {
+	defer dirworkerGroup.Done()
+
+	sourceList, err := s.Source.List(dir, "/", "", 1000)
+	if err != nil {
+		addError(err)
+		return
+	}
+
+	destList, err := s.Destination.List(dir, "/", "", 1000)
+	if err != nil {
+		addError(err)
+		return
+	}
+
+	// push changed files onto file queue
+	for i := 0; i < len(sourceList.Contents); i++ {
+		key := sourceList.Contents[i]
+		existing, found := findKey(key.Key, destList)
+		if !found || keyChanged(key, existing) {
+			s.pushFile(key.Key)
+		}
+	}
+
+	// push subdirectories onto directory queue
+	for i := 0; i < len(sourceList.CommonPrefixes); i++ {
+		pushDirectory(sourceList.CommonPrefixes[i])
+	}
+
+	// push subdirectories that no longer exist onto queue
+	for i := 0; i < len(destList.CommonPrefixes); i++ {
+		if !inList(destList.CommonPrefixes[i], sourceList.CommonPrefixes) {
+			pushDirectory(destList.CommonPrefixes[i])
+		}
+	}
 }
 
 func keyChanged(src s3.Key, dest s3.Key) bool {

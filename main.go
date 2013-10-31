@@ -6,19 +6,31 @@ import (
 	"github.com/tobi/airbrake-go"
 	"log"
 	"os"
+	"sync"
 	"time"
 )
 
 var (
-	fileWorker []*S3Connection
-	dirWorker  []*S3Connection
+	dirWorker []*S3Connection
 
+	dirworkerGroup     sync.WaitGroup
 	dirWorkersFinished = make(chan int)
-	fileWorkerQuit     = make(chan int)
 	dirWorkerQuit      = make(chan int)
+
+	fileGroup sync.WaitGroup
+
+	startTime time.Time
 )
 
+func statsUpdated() {
+	if Config.StatsTicker {
+		fmt.Print("\r\033[K")
+		fmt.Printf("%+v", Stats)
+	}
+}
+
 func main() {
+	startTime = time.Now()
 	if len(os.Getenv("log")) > 0 {
 		logFile, err := os.OpenFile(os.Getenv("log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 		if err != nil {
@@ -40,26 +52,18 @@ func main() {
 		log.Fatal(err)
 	}
 
+	statsUpdated()
 	performCopy()
 	shutdown()
+
+	if Config.StatsTicker {
+		fmt.Println()
+	}
 }
 
 func setup() {
 	var err error
-
-	fileWorker = make([]*S3Connection, Config.FileWorkers)
 	dirWorker = make([]*S3Connection, Config.DirWorkers)
-
-	// spawn workers
-	log.Printf("Spawning %d file workers", Config.FileWorkers)
-
-	for i := 0; i < Config.FileWorkers; i++ {
-		fileWorker[i], err = S3Init()
-		if err != nil {
-			log.Fatal(err)
-		}
-		go fileWorker[i].fileCopier(fileWorkerQuit)
-	}
 
 	// 1 worker for the directory queue manager
 	go DirManager()
@@ -77,13 +81,13 @@ func setup() {
 func performCopy() {
 	setup()
 	pushDirectory("")
-	<-dirWorkersFinished
+	dirworkerGroup.Wait()
+	fileGroup.Wait()
 }
 
 func kill() {
 	// force death if shutting down takes > 20 minutes
-	time.Sleep(20 * time.Minute)
-	log.Printf("Shutdown took more than 20 minutes, forcing exit")
+	log.Printf("Shutdown took too long, forcing exit")
 	finale()
 	os.Exit(1)
 }
@@ -91,12 +95,12 @@ func kill() {
 func finale() {
 	log.Printf("Final stats:")
 	printStats()
-
 	printErrors()
+
+	log.Printf("Time taken: %d seconds", time.Now().Sub(startTime)/time.Second)
 }
 
 func stop() {
-	close(CopyFiles)
 	close(DirCollector)
 }
 
@@ -104,20 +108,14 @@ func shutdown() {
 	log.Printf("Shutting down..")
 	stop()
 
-	go kill()
+	time.AfterFunc(20*time.Minute, kill)
 
-	printStats()
-	finished := 0
-	for finished < Config.FileWorkers {
-		finished += <-fileWorkerQuit
-		log.Printf("File Worker quit..")
+	log.Printf("%+v", Stats)
+
+	for i := 1; i <= Config.DirWorkers; i++ {
+		<-dirWorkerQuit
+		log.Printf("Directory Worker %d quit", i)
 	}
 
-	printStats()
-	finished = 0
-	for finished < Config.DirWorkers {
-		finished += <-dirWorkerQuit
-		log.Printf("Directory Worker quit..")
-	}
 	finale()
 }

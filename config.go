@@ -8,8 +8,7 @@ import (
 )
 
 type ConfigType struct {
-	FileWorkers int
-	DirWorkers  int
+	DirWorkers int
 
 	Source, Destination        string
 	AccessKey, SecretAccessKey string
@@ -17,6 +16,8 @@ type ConfigType struct {
 	// http or https
 	Protocol string
 	Host     string
+
+	StatsTicker bool
 }
 
 var Config ConfigType

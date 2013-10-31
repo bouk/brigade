@@ -10,7 +10,6 @@ func TestTargetLoadFromJSON(t *testing.T) {
       "Source": "source_bucket",
       "AccessKey": "1234",
       "SecretAccessKey": "MySecretAccessKey",
-      "FileWorkers": 20,
       "Protocol": "https",
       "DirWorkers": 10
     }
@@ -36,10 +35,6 @@ func TestTargetLoadFromJSON(t *testing.T) {
 
 	if Config.SecretAccessKey != "MySecretAccessKey" {
 		t.Error("Config.SecretAccessKey incorrect")
-	}
-
-	if Config.FileWorkers != 20 {
-		t.Error("Config.FileWorkers incorrect")
 	}
 
 	if Config.DirWorkers != 10 {

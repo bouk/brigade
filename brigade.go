@@ -11,7 +11,6 @@ var (
 	Errors     []error
 	ErrorMutex sync.RWMutex
 
-	CopyFiles          = make(chan string, 1000)
 	DeleteFiles        = make(chan string, 100)
 	PendingDirectories int64
 
