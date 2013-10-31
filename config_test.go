@@ -6,45 +6,36 @@ import "bytes"
 func TestTargetLoadFromJSON(t *testing.T) {
 	jsonTarget := bytes.NewBufferString(`
     {
-      "Source": {"Server": "s3.com", "BucketName": "source_bucket", "AccessKey": "1234", "SecretAccessKey": "MySecretAccessKey"},
-      "Dest": {"Server": "storage.google.com", "BucketName": "google_bucket", "AccessKey": "abcd", "SecretAccessKey": "MyOtherSecretAccessKey"},
+      "Host": "s3.com",
+      "Source": "source_bucket",
+      "AccessKey": "1234",
+      "SecretAccessKey": "MySecretAccessKey",
       "FileWorkers": 20,
+      "Protocol": "https",
       "DirWorkers": 10
     }
   `)
 
 	loadConfig(jsonTarget)
 
-	if Config.Source.Server != "s3.com" {
-		t.Error("Config.Source.Server incorrect")
+	if Config.Host != "s3.com" {
+		t.Error("Config.Host incorrect")
 	}
 
-	if Config.Source.BucketName != "source_bucket" {
-		t.Error("Config.Source.BucketName incorrect")
+	if Config.Source != "source_bucket" {
+		t.Error("Config.Source incorrect")
 	}
 
-	if Config.Source.AccessKey != "1234" {
-		t.Error("Config.Source.AccessKey incorrect")
+	if Config.Protocol != "https" {
+		t.Error("Config.Protocol incorrect")
 	}
 
-	if Config.Source.SecretAccessKey != "MySecretAccessKey" {
-		t.Error("Config.Source.SecretAccessKey incorrect")
+	if Config.AccessKey != "1234" {
+		t.Error("Config.AccessKey incorrect")
 	}
 
-	if Config.Dest.Server != "storage.google.com" {
-		t.Error("Config.Dest.Server incorrect")
-	}
-
-	if Config.Dest.BucketName != "google_bucket" {
-		t.Error("Config.Dest.BucketName incorrect")
-	}
-
-	if Config.Dest.AccessKey != "abcd" {
-		t.Error("Config.Dest.AccessKey incorrect")
-	}
-
-	if Config.Dest.SecretAccessKey != "MyOtherSecretAccessKey" {
-		t.Error("Config.Dest.SecretAccessKey incorrect")
+	if Config.SecretAccessKey != "MySecretAccessKey" {
+		t.Error("Config.SecretAccessKey incorrect")
 	}
 
 	if Config.FileWorkers != 20 {

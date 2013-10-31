@@ -6,7 +6,6 @@ import (
 	"github.com/tobi/airbrake-go"
 	"log"
 	"os"
-	"sync/atomic"
 	"time"
 )
 
@@ -41,12 +40,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	setup()
-
-	atomic.AddInt64(&PendingDirectories, 1)
-	DirCollector <- ""
-
-	<-dirWorkersFinished
+	performCopy()
 	shutdown()
 }
 
@@ -80,6 +74,12 @@ func setup() {
 	}
 }
 
+func performCopy() {
+	setup()
+	pushDirectory("")
+	<-dirWorkersFinished
+}
+
 func kill() {
 	// force death if shutting down takes > 20 minutes
 	time.Sleep(20 * time.Minute)
@@ -95,10 +95,14 @@ func finale() {
 	printErrors()
 }
 
-func shutdown() {
-	log.Printf("Shutting down..")
+func stop() {
 	close(CopyFiles)
 	close(DirCollector)
+}
+
+func shutdown() {
+	log.Printf("Shutting down..")
+	stop()
 
 	go kill()
 

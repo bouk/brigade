@@ -61,9 +61,9 @@ func S3Init() (*S3Connection, error) {
 	}
 
 	s := &S3Connection{
-		connection,
-		connection.Bucket(Config.Source),
-		connection.Bucket(Config.Destination),
+		Connection:  connection,
+		Source:      connection.Bucket(Config.Source),
+		Destination: connection.Bucket(Config.Destination),
 	}
 
 	return s, nil

@@ -4,24 +4,24 @@ import (
 	"github.com/bouk/goamz/s3"
 	"os"
 	"testing"
-	"time"
 )
 
-var sourceBucketName string = "brigade-test-source"
-var destBucketName string = "brigade-test-destination"
-
-func TestCredentials(t *testing.T) {
-	if os.Getenv("ACCESS_KEY") == "" || os.Getenv("SECRET_ACCESS_KEY") == "" || os.Getenv("AWS_HOST") == "" {
-		t.Error("Please set ACCESS_KEY, SECRET_ACCESS_KEY, and AWS_HOST variables for integration tests")
-	}
-}
-
-func loadTarget(bucket string) *Target {
-	return &Target{os.Getenv("AWS_HOST"), bucket, os.Getenv("ACCESS_KEY"), os.Getenv("SECRET_ACCESS_KEY")}
-}
+var (
+	sourceBucket, destBucket *s3.Bucket
+	connection               *S3Connection
+)
 
 func LoadTestConfig() {
-	Config = ConfigType{Source: loadTarget(sourceBucketName), Dest: loadTarget(destBucketName), FileWorkers: 0, DirWorkers: 1}
+	Config = ConfigType{
+		Source:          os.Getenv("SOURCE_BUCKET"),
+		Destination:     os.Getenv("DESTINATION_BUCKET"),
+		FileWorkers:     0,
+		DirWorkers:      1,
+		AccessKey:       os.Getenv("ACCESS_KEY"),
+		SecretAccessKey: os.Getenv("SECRET_ACCESS_KEY"),
+		Host:            os.Getenv("AWS_HOST"),
+		Protocol:        "http",
+	}
 }
 
 type fileFixture struct {
@@ -47,6 +47,8 @@ var destFixtures []fileFixture = []fileFixture{
 	{"animals/cat", []byte("first cat"), "text/plain", s3.PublicRead},          // identical
 	{"vehicles/truck", []byte("this is a truck"), "text/plain", s3.PublicRead}} // to be deleted
 
+var filesAlreadyInDest = 2
+
 func uploadFixtures(bucket *s3.Bucket, fixtures []fileFixture) error {
 	for i := 0; i < len(fixtures); i++ {
 		err := bucket.Put(fixtures[i].key, fixtures[i].data, fixtures[i].mime, fixtures[i].perm)
@@ -58,28 +60,25 @@ func uploadFixtures(bucket *s3.Bucket, fixtures []fileFixture) error {
 }
 
 func SetupBuckets() error {
-	source := S3Connect(loadTarget(sourceBucketName))
-	dest := S3Connect(loadTarget(destBucketName))
-
-	sourceBucket := source.Bucket(sourceBucketName)
-	destBucket := dest.Bucket(destBucketName)
-
-	err := sourceBucket.PutBucket(s3.PublicRead)
+	var err error
+	LoadTestConfig()
+	connection, err = S3Init()
 	if err != nil {
 		return err
 	}
 
-	err = destBucket.PutBucket(s3.PublicRead)
+	connection.Source.PutBucket(s3.PublicRead)
+	connection.Destination.PutBucket(s3.PublicRead)
+
+	if connection.Source == nil {
+		panic("The fuck")
+	}
+	err = uploadFixtures(connection.Source, sourceFixtures)
 	if err != nil {
 		return err
 	}
 
-	err = uploadFixtures(sourceBucket, sourceFixtures)
-	if err != nil {
-		return err
-	}
-
-	err = uploadFixtures(destBucket, destFixtures)
+	err = uploadFixtures(connection.Destination, destFixtures)
 	if err != nil {
 		return err
 	}
@@ -88,27 +87,32 @@ func SetupBuckets() error {
 }
 
 func TestConnection(t *testing.T) {
-	conn := S3Connect(loadTarget(sourceBucketName))
+	LoadTestConfig()
+	_, err := S3Connect()
 
-	if conn == nil {
-		t.Error("Could not connect to S3 host.  Check network & credentials")
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestSetupBuckets(t *testing.T) {
+	if err := SetupBuckets(); err != nil {
+		t.Error("Failed to set up buckets", err)
+		t.FailNow()
 	}
 }
 
 func TestFindKey(t *testing.T) {
-	setup()
-
 	err := SetupBuckets()
+
 	if err != nil {
-		t.Error("Failed to set up buckets")
+		t.Error("Failed to set up buckets", err)
+		return
 	}
 
-	LoadTestConfig()
-	conn := S3Init()
-
-	sourceList, err := conn.SourceBucket.List("animals/", "/", "", 1000)
+	sourceList, err := connection.Source.List("animals/", "/", "", 1000)
 	if err != nil {
-		t.Error("Failed to list animals dir")
+		t.Error("Failed to list animals dir", err)
 	}
 
 	key, ok := findKey("animals/cat", sourceList)
@@ -117,80 +121,32 @@ func TestFindKey(t *testing.T) {
 	}
 }
 
-func TestCopyDirectory(t *testing.T) {
-	setup()
-
-	err := SetupBuckets()
-	if err != nil {
-		t.Error("Failed to set up buckets")
-	}
-
-	LoadTestConfig()
-
-	//CopyDirectory("")
-
-	for PendingDirectories > 0 {
-		time.Sleep(time.Second)
-	}
-}
-
 func TestCopyBucket(t *testing.T) {
-	setup()
-
 	err := SetupBuckets()
 	if err != nil {
-		t.Error("Failed to set up buckets")
-	}
-
-	LoadTestConfig()
-	conn := S3Init()
-
-	conn.CopyBucket()
-
-	copyExpected := []string{"house2", "house5", "animals/dog"}
-
-	if len(CopyFiles) != len(copyExpected) {
-		t.Errorf("CopyBucket found %d files to copy but we expected %d", len(CopyFiles), len(copyExpected))
+		t.Error("Failed to set up buckets", err)
 		return
 	}
 
-	for i := 0; i < len(copyExpected); i++ {
-		file := <-CopyFiles
-		if file != copyExpected[i] {
-			t.Errorf("CopyBucket file #%d was %s but expected %s", i, file, copyExpected[i])
-		}
-	}
+	performCopy()
 
-	delExpected := []string{"house6", "vehicles/truck"}
-
-	if len(DeleteFiles) != len(delExpected) {
-		t.Errorf("CopyBucket found %d files to delete but we expected %d", len(DeleteFiles), len(delExpected))
+	if len(CopyFiles) != (len(sourceFixtures) - filesAlreadyInDest) {
+		t.Errorf("CopyBucket found %d files to copy but we expected %d", len(CopyFiles), len(sourceFixtures)-filesAlreadyInDest)
 		return
 	}
 
-	for i := 0; i < len(delExpected); i++ {
-		file := <-DeleteFiles
-		if file != delExpected[i] {
-			t.Errorf("CopyBucket file to delete #%d was %s but expected %s", i, file, delExpected[i])
-		}
-	}
-
+	stop()
 }
 
 func TestReadMIME(t *testing.T) {
-	setup()
-
 	err := SetupBuckets()
 	if err != nil {
-		t.Error("Failed to set up buckets")
+		t.Error("Failed to set up buckets", err)
 	}
 
-	LoadTestConfig()
-	conn := S3Init()
-
-	resp, err := conn.SourceBucket.GetResponse("house3")
+	resp, err := connection.Source.GetResponse("house3")
 	if err != nil {
-		t.Errorf("Failed to get a response for fixture")
+		t.Errorf("Failed to get a response for fixture", err)
 	}
 
 	if resp.Header["Content-Type"][0] != "text/xml" {

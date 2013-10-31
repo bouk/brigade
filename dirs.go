@@ -10,6 +10,11 @@ func DirManager() {
 	iq.SliceIQ(DirCollector, NextDir)
 }
 
+func pushDirectory(key string) {
+	atomic.AddInt64(&PendingDirectories, 1)
+	DirCollector <- key
+}
+
 func (s *S3Connection) dirWorker(quitChannel chan int) {
 	for dir := range NextDir {
 		atomic.AddInt64(&Stats.directories, 1)
@@ -46,15 +51,13 @@ func (s *S3Connection) dirWorker(quitChannel chan int) {
 
 		// push subdirectories onto directory queue
 		for i := 0; i < len(sourceList.CommonPrefixes); i++ {
-			atomic.AddInt64(&PendingDirectories, 1)
-			DirCollector <- sourceList.CommonPrefixes[i]
+			pushDirectory(sourceList.CommonPrefixes[i])
 		}
 
 		// push subdirectories that no longer exist onto queue
 		for i := 0; i < len(destList.CommonPrefixes); i++ {
 			if !inList(destList.CommonPrefixes[i], sourceList.CommonPrefixes) {
-				atomic.AddInt64(&PendingDirectories, 1)
-				DirCollector <- destList.CommonPrefixes[i]
+				pushDirectory(destList.CommonPrefixes[i])
 			}
 		}
 		atomic.AddInt64(&PendingDirectories, -1)
