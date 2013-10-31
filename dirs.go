@@ -37,13 +37,13 @@ func (s *S3Connection) dirWorker(number int) {
 }
 
 func (s *S3Connection) workDir(dir string) {
-	sourceList, err := s.Source.List(dir, "/", "", 1000)
+	sourceList, err := s.Source.List(dir, "/", "", 5000)
 	if err != nil {
 		addError(err)
 		return
 	}
 
-	destList, err := s.Destination.List(dir, "/", "", 1000)
+	destList, err := s.Destination.List(dir, "/", "", 5000)
 	if err != nil {
 		addError(err)
 		return
