@@ -1,27 +1,31 @@
 package main
 
-import "os"
-import "io"
-import "log"
-import "encoding/json"
-
-type Target struct {
-	Server          string
-	BucketName      string
-	AccessKey       string
-	SecretAccessKey string
-}
+import (
+	"encoding/json"
+	"io"
+	"log"
+	"os"
+)
 
 type ConfigType struct {
-	Source      *Target
-	Dest        *Target
 	FileWorkers int
 	DirWorkers  int
+
+	Source, Destination        string
+	AccessKey, SecretAccessKey string
+
+	// http or https
+	Protocol string
+	Host     string
 }
 
 var Config ConfigType
 
-func readConfig() {
+func (c *ConfigType) Endpoint() (string, error) {
+	return c.Protocol + "://" + c.Host, nil
+}
+
+func readConfig() error {
 	configFile := os.Getenv("ENV")
 
 	if configFile == "" {
@@ -33,19 +37,13 @@ func readConfig() {
 	f, err := os.Open(configFile)
 
 	if err != nil {
-		log.Printf("Error opening config file: %s", err)
-		return
+		return err
 	}
 	defer f.Close()
 
-	loadConfig(f)
+	return loadConfig(f)
 }
 
-func loadConfig(source io.Reader) {
-	err := json.NewDecoder(source).Decode(&Config)
-
-	if err != nil {
-		log.Fatalf("Error parsing config file: %s", err)
-		return
-	}
+func loadConfig(source io.Reader) error {
+	return json.NewDecoder(source).Decode(&Config)
 }

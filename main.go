@@ -11,33 +11,15 @@ import (
 )
 
 var (
-	fileWorker         []*S3Connection
-	dirWorker          []*S3Connection
-	PendingDirectories int64
-
-	DirCollector chan string
-	NextDir      chan string
-
-	dirWorkersFinished chan int
-	fileWorkerQuit     chan int
-	dirWorkerQuit      chan int
-)
-
-func init() {
-	CopyFiles = make(chan string, 1000)
-	DeleteFiles = make(chan string, 100)
-
-	fileWorkerQuit = make(chan int)
-	dirWorkerQuit = make(chan int)
+	fileWorker []*S3Connection
+	dirWorker  []*S3Connection
 
 	dirWorkersFinished = make(chan int)
-
-	DirCollector = make(chan string)
-	NextDir = make(chan string)
-}
+	fileWorkerQuit     = make(chan int)
+	dirWorkerQuit      = make(chan int)
+)
 
 func main() {
-
 	if len(os.Getenv("log")) > 0 {
 		logFile, err := os.OpenFile(os.Getenv("log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 		if err != nil {
@@ -45,17 +27,19 @@ func main() {
 			airbrake.Error(err, nil)
 			log.Fatal(err)
 		}
-		log.SetOutput(logFile)
 		defer logFile.Close()
+
+		log.SetOutput(logFile)
 	}
 
-	log := 300
-
-	if log > 0 {
-		go statsWorker(log)
+	logTime := 300
+	if logTime > 0 {
+		go statsWorker(logTime)
 	}
 
-	readConfig()
+	if err := readConfig(); err != nil {
+		log.Fatal(err)
+	}
 
 	setup()
 
@@ -67,6 +51,8 @@ func main() {
 }
 
 func setup() {
+	var err error
+
 	fileWorker = make([]*S3Connection, Config.FileWorkers)
 	dirWorker = make([]*S3Connection, Config.DirWorkers)
 
@@ -74,7 +60,10 @@ func setup() {
 	log.Printf("Spawning %d file workers", Config.FileWorkers)
 
 	for i := 0; i < Config.FileWorkers; i++ {
-		fileWorker[i] = S3Init()
+		fileWorker[i], err = S3Init()
+		if err != nil {
+			log.Fatal(err)
+		}
 		go fileWorker[i].fileCopier(fileWorkerQuit)
 	}
 
@@ -83,7 +72,10 @@ func setup() {
 
 	// N directory workers
 	for i := 0; i < Config.DirWorkers; i++ {
-		dirWorker[i] = S3Init()
+		dirWorker[i], err = S3Init()
+		if err != nil {
+			log.Fatal(err)
+		}
 		go dirWorker[i].dirWorker(dirWorkerQuit)
 	}
 }
@@ -100,14 +92,7 @@ func finale() {
 	log.Printf("Final stats:")
 	printStats()
 
-	ErrorMutex.Lock()
-	if len(Errors) > 0 {
-		log.Printf("%v Errors:", len(Errors))
-		for err := range Errors {
-			log.Printf("%v", err)
-		}
-	}
-	ErrorMutex.Unlock()
+	printErrors()
 }
 
 func shutdown() {
@@ -116,6 +101,7 @@ func shutdown() {
 	close(DirCollector)
 
 	go kill()
+
 	printStats()
 	finished := 0
 	for finished < Config.FileWorkers {

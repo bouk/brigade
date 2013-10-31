@@ -6,28 +6,21 @@ import (
 	"sync/atomic"
 )
 
-func addError(err error) {
-	ErrorMutex.Lock()
-	Errors = append(Errors, err)
-	ErrorMutex.Unlock()
-}
-
 func DirManager() {
 	iq.SliceIQ(DirCollector, NextDir)
 }
 
 func (s *S3Connection) dirWorker(quitChannel chan int) {
-
 	for dir := range NextDir {
 		atomic.AddInt64(&Stats.directories, 1)
 
-		sourceList, err := s.SourceBucket.List(dir, "/", "", 1000)
+		sourceList, err := s.Source.List(dir, "/", "", 1000)
 		if err != nil {
 			addError(err)
 			return
 		}
 
-		destList, err := s.DestBucket.List(dir, "/", "", 1000)
+		destList, err := s.Destination.List(dir, "/", "", 1000)
 		if err != nil {
 			addError(err)
 			return

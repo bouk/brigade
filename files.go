@@ -23,7 +23,7 @@ func (s *S3Connection) copyFile(key string) {
 		atomic.AddInt64(&Stats.working, -1)
 	}()
 
-	source, err := s.SourceBucket.GetResponse(key)
+	source, err := s.Source.GetResponse(key)
 	if err != nil {
 		addError(err)
 		return
@@ -48,7 +48,7 @@ func (s *S3Connection) copyFile(key string) {
 
 	mime := source.Header["Content-Type"][0]
 
-	err = s.DestBucket.PutReader(key, source.Body, length, mime, s3.PublicRead)
+	err = s.Destination.PutReader(key, source.Body, length, mime, s3.PublicRead)
 	if err != nil {
 		addError(err)
 	} else {
