@@ -43,10 +43,7 @@ func main() {
 		log.SetOutput(logFile)
 	}
 
-	logTime := 300
-	if logTime > 0 {
-		go statsWorker(logTime)
-	}
+	go statsWorker()
 
 	if err := readConfig(); err != nil {
 		log.Fatal(err)
@@ -58,6 +55,12 @@ func main() {
 
 	if Config.StatsTicker {
 		fmt.Println()
+	}
+}
+
+func statsWorker() {
+	for _ = range time.Tick(10 * time.Second) {
+		printStats()
 	}
 }
 

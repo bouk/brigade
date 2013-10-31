@@ -11,7 +11,6 @@ var (
 	Errors     []error
 	ErrorMutex sync.RWMutex
 
-	DeleteFiles        = make(chan string, 100)
 	PendingDirectories int64
 
 	DirCollector = make(chan string)
@@ -30,8 +29,8 @@ func printErrors() {
 
 	if len(Errors) > 0 {
 		log.Printf("%v Errors:", len(Errors))
-		for err := range Errors {
-			log.Print(err)
+		for _, err := range Errors {
+			log.Print(err.Error())
 		}
 	}
 }

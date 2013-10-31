@@ -27,13 +27,3 @@ func printStats() {
 		log.Printf(lastLog)
 	}
 }
-
-func statsWorker(period int) {
-	start = time.Now()
-
-	delay := time.Duration(period) * time.Second
-	for {
-		printStats()
-		time.Sleep(delay)
-	}
-}
