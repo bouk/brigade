@@ -17,11 +17,12 @@ func pushDirectory(key string) {
 	DirCollector <- key
 }
 
-func (s *S3Connection) pushFile(key string) {
+func (s *S3Connection) pushFile(key s3.Key) {
 	atomic.AddInt64(&Stats.files, 1)
+	atomic.AddInt64(&Stats.bytes, key.Size)
 	statsUpdated()
 	fileGroup.Add(1)
-	go s.copyFileInWaitGroup(key)
+	go s.copyFileInWaitGroup(key.Key)
 }
 
 func (s *S3Connection) dirWorker(quitChannel chan int) {
@@ -51,7 +52,7 @@ func (s *S3Connection) workDir(dir string) {
 		key := sourceList.Contents[i]
 		existing, found := findKey(key.Key, destList)
 		if !found || keyChanged(key, existing) {
-			s.pushFile(key.Key)
+			s.pushFile(key)
 		}
 	}
 
