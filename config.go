@@ -15,17 +15,12 @@ type ConfigType struct {
 	AccessKey, SecretAccessKey string
 
 	// http or https
-	Protocol string
-	Host     string
+	Region string
 
 	StatsTicker bool
 }
 
 var Config ConfigType
-
-func (c *ConfigType) Endpoint() (string, error) {
-	return c.Protocol + "://" + c.Host, nil
-}
 
 func readConfig() error {
 	configFile := os.Getenv("ENV")

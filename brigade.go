@@ -46,13 +46,12 @@ type S3Connection struct {
 }
 
 func S3Connect() (*s3.S3, error) {
-	auth := aws.Auth{Config.AccessKey, Config.SecretAccessKey, ""}
-	endpoint, err := Config.Endpoint()
+	auth, err := aws.GetAuth(Config.AccessKey, Config.SecretAccessKey)
 	if err != nil {
 		return nil, err
 	}
 
-	return s3.New(auth, aws.Region{S3Endpoint: endpoint}), nil
+	return s3.New(auth, aws.Regions[Config.Region]), nil
 }
 
 func S3Init() (*S3Connection, error) {
