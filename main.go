@@ -15,11 +15,12 @@ var (
 
 	dirworkerGroup     sync.WaitGroup
 	dirWorkersFinished = make(chan int)
-	dirWorkerQuit      = make(chan int)
 
 	fileGroup sync.WaitGroup
 
 	startTime time.Time
+
+	s3Connection *S3Connection
 )
 
 func statsUpdated() {
@@ -48,6 +49,7 @@ func main() {
 	if err := readConfig(); err != nil {
 		log.Fatal(err)
 	}
+	FileQueue = make(chan string, Config.FileWorkers)
 
 	statsUpdated()
 	performCopy()
@@ -66,18 +68,22 @@ func statsWorker() {
 
 func setup() {
 	var err error
-	dirWorker = make([]*S3Connection, Config.DirWorkers)
 
-	// 1 worker for the directory queue manager
+	// directory queue manager
 	go DirManager()
 
+	s3Connection, err = S3Init()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for i := 1; i <= Config.FileWorkers; i++ {
+		go s3Connection.fileWorker(i)
+	}
+
 	// N directory workers
-	for i := 0; i < Config.DirWorkers; i++ {
-		dirWorker[i], err = S3Init()
-		if err != nil {
-			log.Fatal(err)
-		}
-		go dirWorker[i].dirWorker(dirWorkerQuit)
+	for i := 1; i <= Config.DirWorkers; i++ {
+		go s3Connection.dirWorker(i)
 	}
 }
 
@@ -86,13 +92,6 @@ func performCopy() {
 	pushDirectory("")
 	dirworkerGroup.Wait()
 	fileGroup.Wait()
-}
-
-func kill() {
-	// force death if shutting down takes > 20 minutes
-	log.Printf("Shutdown took too long, forcing exit")
-	finale()
-	os.Exit(1)
 }
 
 func finale() {
@@ -111,14 +110,6 @@ func shutdown() {
 	log.Printf("Shutting down..")
 	stop()
 
-	time.AfterFunc(20*time.Minute, kill)
-
 	log.Printf("%+v", Stats)
-
-	for i := 1; i <= Config.DirWorkers; i++ {
-		<-dirWorkerQuit
-		log.Printf("Directory Worker %d quit", i)
-	}
-
 	finale()
 }

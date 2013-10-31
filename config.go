@@ -8,7 +8,8 @@ import (
 )
 
 type ConfigType struct {
-	DirWorkers int
+	DirWorkers  int
+	FileWorkers int
 
 	Source, Destination        string
 	AccessKey, SecretAccessKey string

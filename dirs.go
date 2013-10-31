@@ -3,17 +3,19 @@ package main
 import (
 	"github.com/boourns/iq"
 	"github.com/bouk/goamz/s3"
+	"log"
 	"sync/atomic"
 )
 
 func DirManager() {
-	iq.SliceIQ(DirCollector, NextDir)
+	iq.SliceIQ(DirCollector, DirQueue)
 }
 
 func pushDirectory(key string) {
 	atomic.AddInt64(&Stats.directories, 1)
 	statsUpdated()
 	dirworkerGroup.Add(1)
+	log.Printf("Pushed directory %s", key)
 	DirCollector <- key
 }
 
@@ -22,19 +24,19 @@ func (s *S3Connection) pushFile(key s3.Key) {
 	atomic.AddInt64(&Stats.bytes, key.Size)
 	statsUpdated()
 	fileGroup.Add(1)
-	go s.copyFileInWaitGroup(key.Key)
+	log.Printf("Starting transfer for %s", key.Key)
+	FileQueue <- key.Key
 }
 
-func (s *S3Connection) dirWorker(quitChannel chan int) {
-	for dir := range NextDir {
+func (s *S3Connection) dirWorker(number int) {
+	for dir := range DirQueue {
+		log.Printf("Dirworker %d started working on %s", number, dir)
 		s.workDir(dir)
+		dirworkerGroup.Done()
 	}
-	quitChannel <- 1
 }
 
 func (s *S3Connection) workDir(dir string) {
-	defer dirworkerGroup.Done()
-
 	sourceList, err := s.Source.List(dir, "/", "", 1000)
 	if err != nil {
 		addError(err)

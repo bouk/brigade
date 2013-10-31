@@ -2,11 +2,15 @@ package main
 
 import (
 	"github.com/bouk/goamz/s3"
+	"log"
 )
 
-func (s *S3Connection) copyFileInWaitGroup(key string) {
-	defer fileGroup.Done()
-	s.copyFile(key)
+func (s *S3Connection) fileWorker(number int) {
+	for key := range FileQueue {
+		log.Printf("Fileworker %d started working on %s", number, key)
+		s.copyFile(key)
+		fileGroup.Done()
+	}
 }
 
 func (s *S3Connection) copyFile(key string) {

@@ -5,6 +5,7 @@ import (
 	"github.com/mitchellh/goamz/aws"
 	"log"
 	"sync"
+	"sync/atomic"
 )
 
 var (
@@ -14,10 +15,12 @@ var (
 	PendingDirectories int64
 
 	DirCollector = make(chan string)
-	NextDir      = make(chan string)
+	DirQueue     = make(chan string)
+	FileQueue    chan string
 )
 
 func addError(err error) {
+	atomic.AddInt64(&Stats.errors, 1)
 	ErrorMutex.Lock()
 	defer ErrorMutex.Unlock()
 	Errors = append(Errors, err)
