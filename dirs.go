@@ -19,7 +19,7 @@ func pushDirectory(key string) {
 	DirCollector <- key
 }
 
-func (s *S3Connection) pushFile(key s3.Key) {
+func pushFile(key s3.Key) {
 	atomic.AddInt64(&Stats.files, 1)
 	atomic.AddInt64(&Stats.bytes, key.Size)
 	statsUpdated()
@@ -37,58 +37,67 @@ func (s *S3Connection) dirWorker(number int) {
 }
 
 func (s *S3Connection) workDir(dir string) {
-	sourceList, err := s.Source.List(dir, "/", "", 5000)
+	sourceFiles, sourceDirectories, err := listAllFiles(dir, s.Source)
 	if err != nil {
 		addError(err)
 		return
 	}
 
-	destList, err := s.Destination.List(dir, "/", "", 5000)
+	destinationFiles, destinationDirectories, err := listAllFiles(dir, s.Destination)
 	if err != nil {
 		addError(err)
 		return
 	}
 
-	// push changed files onto file queue
-	for i := 0; i < len(sourceList.Contents); i++ {
-		key := sourceList.Contents[i]
-		existing, found := findKey(key.Key, destList)
-		if !found || keyChanged(key, existing) {
-			s.pushFile(key)
+	destinationFileMap := make(map[string]*s3.Key)
+	for _, key := range destinationFiles {
+		destinationFileMap[key.Key] = &key
+	}
+
+	sourceDirectoryMap := make(map[string]bool)
+	for _, directory := range sourceDirectories {
+		sourceDirectoryMap[directory] = true
+	}
+
+	for _, sourceKey := range sourceFiles {
+		destinationKey, ok := destinationFileMap[sourceKey.Key]
+		if !ok || keyChanged(&sourceKey, destinationKey) {
+			pushFile(sourceKey)
 		}
 	}
 
 	// push subdirectories onto directory queue
-	for i := 0; i < len(sourceList.CommonPrefixes); i++ {
-		pushDirectory(sourceList.CommonPrefixes[i])
+	for _, directory := range sourceDirectories {
+		pushDirectory(directory)
 	}
 
-	// push subdirectories that no longer exist onto queue
-	for i := 0; i < len(destList.CommonPrefixes); i++ {
-		if !inList(destList.CommonPrefixes[i], sourceList.CommonPrefixes) {
-			pushDirectory(destList.CommonPrefixes[i])
+	// push subdirectories that no longer exist onto queue (so the files in them can be deleted)
+	for _, directory := range destinationDirectories {
+		if !sourceDirectoryMap[directory] {
+			pushDirectory(directory)
 		}
 	}
 }
 
-func keyChanged(src s3.Key, dest s3.Key) bool {
-	return src.Size != dest.Size || src.ETag != dest.ETag || src.StorageClass != dest.StorageClass
+// List all the files in a bucket, taking in mind that a file list might be truncated
+func listAllFiles(dir string, bucket *s3.Bucket) (files []s3.Key, directories []string, err error) {
+	list, err := bucket.List(dir, "/", "", 1000)
+	if err != nil {
+		return
+	}
+	files = list.Contents
+	directories = list.CommonPrefixes
+	for list.IsTruncated {
+		list, err = bucket.List(dir, "/", list.Marker, 1000)
+		if err != nil {
+			return
+		}
+		files = append(files, list.Contents...)
+		directories = append(directories, list.CommonPrefixes...)
+	}
+	return
 }
 
-func inList(input string, list []string) bool {
-	for i := 0; i < len(list); i++ {
-		if input == list[i] {
-			return true
-		}
-	}
-	return false
-}
-
-func findKey(name string, list *s3.ListResp) (s3.Key, bool) {
-	for i := 0; i < len(list.Contents); i++ {
-		if list.Contents[i].Key == name {
-			return list.Contents[i], true
-		}
-	}
-	return s3.Key{}, false
+func keyChanged(src *s3.Key, dest *s3.Key) bool {
+	return src.ETag != dest.ETag || src.LastModified != dest.LastModified || src.StorageClass != dest.StorageClass
 }
