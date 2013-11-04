@@ -108,5 +108,5 @@ func listAllFiles(dir string, bucket *s3.Bucket) (files []s3.Key, directories []
 }
 
 func keyChanged(src *s3.Key, dest *s3.Key) bool {
-	return src.ETag != dest.ETag || src.LastModified != dest.LastModified || src.StorageClass != dest.StorageClass
+	return src.ETag != dest.ETag || src.StorageClass != dest.StorageClass
 }
