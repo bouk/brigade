@@ -96,7 +96,6 @@ func performCopy() {
 func finale() {
 	log.Printf("Final stats:")
 	printStats()
-	printErrors()
 
 	log.Printf("Time taken: %d seconds", time.Now().Sub(startTime)/time.Second)
 }

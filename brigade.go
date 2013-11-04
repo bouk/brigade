@@ -5,14 +5,10 @@ import (
 	"github.com/bouk/priority_iq"
 	"github.com/mitchellh/goamz/aws"
 	"log"
-	"sync"
 	"sync/atomic"
 )
 
 var (
-	Errors     []error
-	ErrorMutex sync.RWMutex
-
 	PendingDirectories int64
 
 	DirCollector = make(chan priority_iq.Object)
@@ -22,21 +18,7 @@ var (
 
 func addError(err error) {
 	atomic.AddInt64(&Stats.errors, 1)
-	ErrorMutex.Lock()
-	defer ErrorMutex.Unlock()
-	Errors = append(Errors, err)
-}
-
-func printErrors() {
-	ErrorMutex.RLock()
-	defer ErrorMutex.RUnlock()
-
-	if len(Errors) > 0 {
-		log.Printf("%v Errors:", len(Errors))
-		for _, err := range Errors {
-			log.Print(err.Error())
-		}
-	}
+	log.Print(err)
 }
 
 type S3Connection struct {
