@@ -11,7 +11,13 @@ func (s *S3Connection) fileWorker(number int) {
 			log.Printf("Fileworker %d started working on %s", number, key)
 		}
 		s.copyFile(key)
+		if Config.Verbose {
+			log.Printf("Fileworker %d done with %s", number, key)
+		}
 		fileGroup.Done()
+		if Config.Verbose {
+			log.Printf("Fileworker %d receiving from queue", number)
+		}
 	}
 }
 

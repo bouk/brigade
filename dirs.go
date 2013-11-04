@@ -36,12 +36,22 @@ func pushFile(key s3.Key) {
 }
 
 func (s *S3Connection) dirWorker(number int) {
+	if Config.Verbose {
+		log.Printf("Dirworker %d started", number)
+	}
+
 	for dir := range DirQueue {
 		if Config.Verbose {
 			log.Printf("Dirworker %d started working on %s", number, dir)
 		}
 		s.workDir(dir)
+		if Config.Verbose {
+			log.Printf("Dirworker %d done on %s", number, dir)
+		}
 		dirworkerGroup.Done()
+		if Config.Verbose {
+			log.Printf("Dirworker %d receiving from queue", number)
+		}
 	}
 }
 
