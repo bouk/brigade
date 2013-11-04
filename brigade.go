@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/bouk/goamz/s3"
+	"github.com/bouk/priority_iq"
 	"github.com/mitchellh/goamz/aws"
 	"log"
 	"sync"
@@ -14,7 +15,7 @@ var (
 
 	PendingDirectories int64
 
-	DirCollector = make(chan string)
+	DirCollector = make(chan priority_iq.Object)
 	DirQueue     = make(chan string)
 	FileQueue    chan string
 )

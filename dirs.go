@@ -1,14 +1,15 @@
 package main
 
 import (
-	"github.com/boourns/iq"
 	"github.com/bouk/goamz/s3"
+	"github.com/bouk/priority_iq"
 	"log"
+	"strings"
 	"sync/atomic"
 )
 
 func DirManager() {
-	iq.SliceIQ(DirCollector, DirQueue)
+	priority_iq.HeapIQ(DirCollector, DirQueue)
 }
 
 func pushDirectory(key string) {
@@ -18,7 +19,9 @@ func pushDirectory(key string) {
 	if Config.Verbose {
 		log.Printf("Pushed directory %s", key)
 	}
-	DirCollector <- key
+
+	// Put the directories in the priority queue by key so deeper directories get worked on first
+	DirCollector <- priority_iq.Object{strings.Count(key, "/"), key}
 }
 
 func pushFile(key s3.Key) {
