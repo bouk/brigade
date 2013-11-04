@@ -32,10 +32,10 @@ func statsUpdated() {
 
 func main() {
 	startTime = time.Now()
-	if len(os.Getenv("log")) > 0 {
-		logFile, err := os.OpenFile(os.Getenv("log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if len(os.Getenv("LOG")) > 0 {
+		logFile, err := os.OpenFile(os.Getenv("LOG"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 		if err != nil {
-			err = errors.New(fmt.Sprintf("Could not open log file %s for writing: %s", os.Getenv("log"), err.Error()))
+			err = errors.New(fmt.Sprintf("Could not open log file %s for writing: %s", os.Getenv("LOG"), err.Error()))
 			airbrake.Error(err, nil)
 			log.Fatal(err)
 		}
