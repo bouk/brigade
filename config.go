@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-type ConfigType struct {
+var Config struct {
 	DirWorkers  int
 	FileWorkers int
 
@@ -18,9 +18,8 @@ type ConfigType struct {
 	Region string
 
 	StatsTicker bool
+	Verbose     bool
 }
-
-var Config ConfigType
 
 func readConfig() error {
 	configFile := os.Getenv("ENV")

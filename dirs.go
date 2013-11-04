@@ -15,7 +15,9 @@ func pushDirectory(key string) {
 	atomic.AddInt64(&Stats.directories, 1)
 	statsUpdated()
 	dirworkerGroup.Add(1)
-	log.Printf("Pushed directory %s", key)
+	if Config.Verbose {
+		log.Printf("Pushed directory %s", key)
+	}
 	DirCollector <- key
 }
 
@@ -24,13 +26,17 @@ func pushFile(key s3.Key) {
 	atomic.AddInt64(&Stats.bytes, key.Size)
 	statsUpdated()
 	fileGroup.Add(1)
-	log.Printf("Starting transfer for %s", key.Key)
+	if Config.Verbose {
+		log.Printf("Starting transfer for %s", key.Key)
+	}
 	FileQueue <- key.Key
 }
 
 func (s *S3Connection) dirWorker(number int) {
 	for dir := range DirQueue {
-		log.Printf("Dirworker %d started working on %s", number, dir)
+		if Config.Verbose {
+			log.Printf("Dirworker %d started working on %s", number, dir)
+		}
 		s.workDir(dir)
 		dirworkerGroup.Done()
 	}

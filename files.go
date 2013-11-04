@@ -7,7 +7,9 @@ import (
 
 func (s *S3Connection) fileWorker(number int) {
 	for key := range FileQueue {
-		log.Printf("Fileworker %d started working on %s", number, key)
+		if Config.Verbose {
+			log.Printf("Fileworker %d started working on %s", number, key)
+		}
 		s.copyFile(key)
 		fileGroup.Done()
 	}
