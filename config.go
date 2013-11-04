@@ -22,13 +22,13 @@ var Config struct {
 }
 
 func readConfig() error {
-	configFile := os.Getenv("ENV")
+	configFile := os.Getenv("CONFIG")
 
 	if configFile == "" {
 		configFile = "config/default.json"
 	}
 
-	log.Printf("Loading environment from %s (override with ENV=xxx)", configFile)
+	log.Printf("Loading environment from %s (override with CONFIG=xxx)", configFile)
 
 	f, err := os.Open(configFile)
 
