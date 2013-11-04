@@ -25,8 +25,7 @@ var (
 
 func statsUpdated() {
 	if Config.StatsTicker {
-		fmt.Print("\r\033[K")
-		fmt.Printf("%+v", Stats)
+		fmt.Printf("\r\033[K%+v", Stats)
 	}
 }
 
